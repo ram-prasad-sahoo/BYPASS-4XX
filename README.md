@@ -2,12 +2,12 @@
 
 ![BYPASS-4XX Banner](https://img.shields.io/badge/Tool-BYPASS--4XX-blue.svg)
 
-## Overview
+## 📢Overview
 **BYPASS-4XX** is an advanced Python tool designed to bypass common 4XX HTTP status codes (e.g., 403, 404) in web applications. This tool uses various techniques such as encoding, header manipulation, HTTP method tampering, and directory traversal to evade restrictions. It is optimized for penetration testers, security researchers, and ethical hackers.
 
-## Features
+## 🚀Features
 
-### Core Features:
+### 🔑Core Features:
 - **Multiple Bypass Techniques**: Leverages encoding, headers, HTTP method tampering, and directory traversal to bypass restrictions.
 - **Concurrency**: Uses multithreading to test multiple payloads quickly.
 - **Customizable Output**: Allows users to define output file names using `-of <filename.txt>`.
@@ -21,7 +21,7 @@
 - **Custom Method Testing**: Attempts alternative HTTP methods like `POST`, `PUT`, `TRACE`, `OPTIONS`.
 - **Case Sensitivity**: Tests different case variations like `ADMIN`, `Admin`, `aDmIn`.
 
-## Installation
+## 🛠️Installation
 
 1. Clone the repository:
    ```bash
@@ -33,9 +33,45 @@
    ```bash
    pip install -r requirements.txt
 
-## Usage
+## ⚡Usage
    To run the tool, use the following command:
    ```bash
    python 4xxbypass.py -of outputfilename.txt
    ```
 ![BYPASS-4XX Banner](https://github.com/ram-prasad-sahoo/BYPASS-4XX/raw/main/tool.png)
+## 📄License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## 👨‍💻Author
+
+This tool was created by **Ram Prasad Sahoo**.
+
+## 💬 **Support**
+
+If you need help or have any questions, feel free to reach out to me:
+
+- **GitHub Issues**: You can open an issue on the [GitHub Issues page](https://github.com/ram-prasad-sahoo/BYPASS-4XX/issues) for technical support or reporting bugs.
+  
+- **Email**: You can contact me directly by clicking the button below:
+
+[![Contact via Gmail](https://img.shields.io/badge/Contact%20via-Gmail-c14438?style=flat&logo=gmail&logoColor=white)](mailto:ramprasadsahoo42@gmail.com)
+
+- **LinkedIn**: Connect with me on LinkedIn by clicking the button below:
+
+[![Connect via LinkedIn](https://img.shields.io/badge/Connect%20via-LinkedIn-0077b5?style=flat&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/ramprasadsahoo/)
+
+---
+
+I aim to respond as quickly as possible, and your feedback is highly appreciated. Thank you for using **BYPASS-4XX**!
+
+
+
+## Disclaimer
+
+**BYPASS-4XX** is a security testing tool intended for ethical hacking and penetration testing in environments where you have explicit permission to do so. 
+
+The author is not responsible for any misuse of this tool. Unauthorized use of this tool for malicious purposes is illegal and against ethical guidelines. Please ensure that you have proper authorization before using this tool on any website or network.
+
+Use at your own risk.
+## ⭐Contributions
+Contributions are welcome! If you want to improve or add new features to the tool, feel free to fork the repository, make changes, and submit a pull request.
