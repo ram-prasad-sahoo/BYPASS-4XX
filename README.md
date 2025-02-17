@@ -37,3 +37,5 @@
    To run the tool, use the following command:
    ```bash
    python 4xxbypass.py -of outputfilename.txt
+   ```
+![BYPASS-4XX Banner](https://github.com/ram-prasad-sahoo/BYPASS-4XX/raw/main/tool.png)
