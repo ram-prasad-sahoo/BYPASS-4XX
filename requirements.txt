@@ -1,3 +1,5 @@
 requests
-colorama
 pyfiglet
+colorama
+tqdm
+urllib3
