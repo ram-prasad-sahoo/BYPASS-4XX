@@ -48,7 +48,7 @@ class BypassRunner:
 
     def print_banner(self):
         """Prints the tool's banner."""
-        banner = pyfiglet.figlet_format("BYPASS-4XX PRO")
+        banner = pyfiglet.figlet_format("BYPASS-4XX")
         author = "Ram"
         print(Fore.RED + banner)
         print(Fore.CYAN + author.center(60))
