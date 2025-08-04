@@ -36,7 +36,24 @@
 ## ⚡Usage
    To run the tool, use the following command:
    ```bash
-   python 4xxbypass.py -of outputfilename.txt
+   usage: 4xxbypass.py [-h] -u URL -p PATH [-o OUTPUT] [-t THREADS] [--timeout TIMEOUT] [--proxy PROXY] [-ua USER_AGENT] [-v]
+
+Advanced 4xx/3xx Bypass Tool with integrated techniques from multiple sources.
+
+options:
+  -h, --help            show this help message and exit
+  -u URL, --url URL     Target URL (e.g., https://example.com)
+  -p PATH, --path PATH  Target path to test (e.g., /admin, /api/v1/users)
+  -o OUTPUT, --output OUTPUT
+                        Specify output file name to save results (e.g.,
+                        results.txt)
+  -t THREADS, --threads THREADS
+                        Number of concurrent threads (default: 30)
+  --timeout TIMEOUT     Request timeout in seconds (default: 10)
+  --proxy PROXY         Proxy server to use (e.g., http://127.0.0.1:8080)
+  -ua USER_AGENT, --user-agent USER_AGENT
+                        Custom User-Agent string
+  -v, --verbose         Show failed attempts in output
    ```
 ![BYPASS-4XX Banner](https://github.com/ram-prasad-sahoo/BYPASS-4XX/raw/main/tool.png)
 ## 📄License
